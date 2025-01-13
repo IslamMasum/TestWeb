@@ -18,16 +18,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           BRANCH_NAME=$(echo "${GITHUB_REF##*/}")
+          echo "Checking for issues linked to branch: $BRANCH_NAME"
           ISSUES=$(gh issue list --state open --search "$BRANCH_NAME" --json number --jq '.[] | .number')
+          echo "Issues found: $ISSUES"
           echo "branch=$BRANCH_NAME" >> $GITHUB_ENV
           echo "issues=$ISSUES" >> $GITHUB_ENV
-        
+
       - name: Create Pull Request
-        if: steps.find_issues.outputs.issues != ''
+        if: env.issues != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_TITLE="Auto PR: Branch ${BRANCH_NAME}"
+          echo "Creating pull request with title: $PR_TITLE"
           gh pr create --title "$PR_TITLE" --body "Automated PR for branch $BRANCH_NAME" --reviewer "IslamMasum" --base main
           
   code_review:
@@ -36,6 +39,18 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: 'javascript,python' # Adjust based on your repo's languages
+
+      - name: Perform Build
+        run: |
+          # Replace with the actual build steps for your project
+          echo "Installing dependencies and building the project..."
+          npm install
+          npm run build
 
       - name: Run CodeQL Analysis
         uses: github/codeql-action/analyze@v2
@@ -46,28 +61,36 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo "Code review completed. Commenting on the pull request..."
           gh pr comment --body "Automated Code Review Completed"
-        
+
   post_merge:
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
-      - name: Extract Closing Keywords
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Extract Issue Number and Close
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo "Extracting issue number from the commit message..."
           COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MESSAGE"
+
           CLOSING_KEYWORDS=("fixes" "closes" "resolves")
-          MATCHED=false
+          ISSUE_NUMBER=""
           for keyword in ${CLOSING_KEYWORDS[@]}; do
             if [[ "$COMMIT_MESSAGE" == *"$keyword"* ]]; then
-              MATCHED=true
+              ISSUE_NUMBER=$(echo "$COMMIT_MESSAGE" | grep -oE "#[0-9]+" | tr -d '#')
               break
             fi
           done
 
-          if [ "$MATCHED" == "false" ]; then
-            echo "Issue remains open. No closing keyword found."
+          if [[ -z "$ISSUE_NUMBER" ]]; then
+            echo "No issue found to close."
           else
-            gh issue close "${GITHUB_REF##*/}"
-            echo "Issue Closed."
+            echo "Closing issue #$ISSUE_NUMBER"
+            gh issue close $ISSUE_NUMBER
+          fi
