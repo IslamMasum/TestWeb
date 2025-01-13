@@ -1,0 +1,49 @@
+# .github/workflows/pull-request.yml
+name: Pull Request Workflow
+on:
+  push:
+    branches:
+      - main # Main branch (default)
+  pull_request:
+    types: [opened, synchronize] # Only trigger on new PRs and merge requests
+
+jobs:
+  create-pr:
+    name: Create Pr
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+- run: |
+git config --global user.name "Your Name"
+git config --global user.email "your@email.com"
+
+# Create new branch for feature
+git checkout -b feature/new-feature
+
+# Stage changes in current directory (main)
+git add .gitignore
+git add .
+git commit -m "Initial code change" # Commit with descriptive message
+
+- run: |
+  git push origin main --allow-squash-and-merge
+- name: Connect PR from new-feature branch back into main
+  uses: actions/checkout@v2
+  with:
+    fetch-depth: 0
+  run: |
+    git pull origin feature/new-feature --allow-squash-and-merge
+
+# Review comments on changes made in each commit (main)
+for file in $(git diff --name-only HEAD^); do
+echo "Reviewing $file"
+done
+
+- name: Merge PR from new-feature branch back into main
+  uses: actions/checkout@v2
+  with:
+    fetch-depth: 0
+  run: |
+    git merge feature/new-feature # Merge with main branch
