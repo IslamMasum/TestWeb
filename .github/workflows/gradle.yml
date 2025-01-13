@@ -1,0 +1,66 @@
+name: Automate Pull Request and Review Workflows
+
+on:
+  push:
+    branches:
+      - '*' # Trigger on all branches
+
+jobs:
+  create_pull_request:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        
+      - name: Get Open Issues Linked to Branch
+        id: find_issues
+        run: |
+          BRANCH_NAME=$(echo "${GITHUB_REF##*/}")
+          ISSUES=$(gh issue list --state open --search "$BRANCH_NAME" --json number --jq '.[] | .number')
+          echo "branch=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "issues=$ISSUES" >> $GITHUB_ENV
+        
+      - name: Create Pull Request
+        if: steps.find_issues.outputs.issues != ''
+        run: |
+          PR_TITLE="Auto PR: Branch ${BRANCH_NAME}"
+          gh pr create --title "$PR_TITLE" --body "Automated PR for branch $BRANCH_NAME" --reviewer "IslamMasum" --base main
+          
+  code_review:
+    needs: create_pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: security
+
+      - name: Comment on Pull Request
+        run: |
+          gh pr comment --body "Automated Code Review Completed"
+        
+  post_merge:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Closing Keywords
+        run: |
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          CLOSING_KEYWORDS=("fixes" "closes" "resolves")
+          MATCHED=false
+          for keyword in ${CLOSING_KEYWORDS[@]}; do
+            if [[ "$COMMIT_MESSAGE" == *"$keyword"* ]]; then
+              MATCHED=true
+              break
+            fi
+          done
+
+          if [ "$MATCHED" == "false" ]; then
+            echo "Issue remains open. No closing keyword found."
+          else
+            gh issue close "${GITHUB_REF##*/}"
+            echo "Issue Closed."
+          fi
