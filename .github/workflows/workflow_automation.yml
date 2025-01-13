@@ -5,22 +5,12 @@ on:
     branches:
       - '*' # Trigger on all branches
 
-permissions:
-  issues: write
-  pull-requests: write
-  contents: write
-
 jobs:
   create_pull_request:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
-
-      - name: Initialize GitHub CLI
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh auth refresh -h github.com --scopes repo,workflow
 
       - name: Get Open Issues Linked to Branch
         id: find_issues
@@ -31,7 +21,7 @@ jobs:
           ISSUES=$(gh issue list --state open --search "$BRANCH_NAME" --json number --jq '.[] | .number')
           echo "branch=$BRANCH_NAME" >> $GITHUB_ENV
           echo "issues=$ISSUES" >> $GITHUB_ENV
-
+        
       - name: Create Pull Request
         if: steps.find_issues.outputs.issues != ''
         env:
@@ -39,19 +29,29 @@ jobs:
         run: |
           PR_TITLE="Auto PR: Branch ${BRANCH_NAME}"
           gh pr create --title "$PR_TITLE" --body "Automated PR for branch $BRANCH_NAME" --reviewer "IslamMasum" --base main
-
-  post_merge:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+          
+  code_review:
+    needs: create_pull_request
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Initialize GitHub CLI
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: security
+
+      - name: Comment on Pull Request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh auth refresh -h github.com --scopes repo,workflow
-
+        run: |
+          gh pr comment --body "Automated Code Review Completed"
+        
+  post_merge:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
       - name: Extract Closing Keywords
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
