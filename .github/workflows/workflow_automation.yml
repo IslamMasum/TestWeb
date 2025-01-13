@@ -20,8 +20,7 @@ jobs:
       - name: Initialize GitHub CLI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh auth refresh -h github.com --scopes repo,workflow
+        run: gh auth refresh -h github.com --scopes repo,workflow
 
       - name: Get Open Issues Linked to Branch
         id: find_issues
@@ -40,7 +39,7 @@ jobs:
         run: |
           PR_TITLE="Auto PR: Branch ${BRANCH_NAME}"
           gh pr create --title "$PR_TITLE" --body "Automated PR for branch $BRANCH_NAME" --reviewer "IslamMasum" --base main
-          
+
   post_merge:
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
@@ -51,8 +50,7 @@ jobs:
       - name: Initialize GitHub CLI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh auth refresh -h github.com --scopes repo,workflow
+        run: gh auth refresh -h github.com --scopes repo,workflow
 
       - name: Extract Closing Keywords
         env:
