@@ -4,7 +4,10 @@ on:
   push:
     branches:
       - '*' # Trigger on all branches
-
+permissions:
+  issues: write
+  pull-requests: write
+  contents: write
 jobs:
   create_pull_request:
     runs-on: ubuntu-latest
