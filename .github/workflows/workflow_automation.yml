@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   create_pull_request:
@@ -36,40 +35,6 @@ jobs:
           PR_TITLE="Auto PR: Branch ${BRANCH_NAME}"
           echo "Creating pull request with title: $PR_TITLE"
           gh pr create --title "$PR_TITLE" --body "Automated PR for branch $BRANCH_NAME" --reviewer "IslamMasum" --base main
-
-  code_review:
-    needs: create_pull_request
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: 'javascript,python' # Adjust based on your repo's languages
-
-      - name: Perform Build
-        run: |
-          if [ -f package.json ]; then
-            echo "Installing dependencies and building the project..."
-            npm install
-            npm run build
-          else
-            echo "No build required. Skipping build step."
-          fi
-
-      - name: Run CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: security
-
-      - name: Comment on Pull Request
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Code review completed. Commenting on the pull request..."
-          gh pr comment --body "Automated Code Review Completed"
 
   post_merge:
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
